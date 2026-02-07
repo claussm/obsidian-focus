@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-focus",
+  "name": "Focus",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "A focused todo processing station with LLM-powered prioritization",
+  "author": "Matt",
+  "isDesktopOnly": false,
+  "fundingUrl": null
+}

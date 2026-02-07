@@ -1,0 +1,481 @@
+/* Focus Plugin Styles */
+
+/* ==================== */
+/* Sidebar              */
+/* ==================== */
+
+.focus-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+}
+
+.focus-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.focus-sidebar-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.focus-sidebar-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.focus-icon-btn {
+  background: transparent;
+  border: none;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.focus-icon-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.focus-llm-btn {
+  color: var(--text-accent);
+}
+
+.focus-todo-count {
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.focus-todo-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+.focus-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ==================== */
+/* Todo Items           */
+/* ==================== */
+
+.focus-todo-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 16px;
+  gap: 8px;
+  border-bottom: 1px solid var(--background-modifier-border-hover);
+  cursor: default;
+  transition: background-color 0.1s ease;
+}
+
+.focus-todo-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.focus-todo-item.dragging {
+  opacity: 0.5;
+  background: var(--background-modifier-active-hover);
+}
+
+.focus-todo-item.drag-over-top {
+  border-top: 2px solid var(--text-accent);
+}
+
+.focus-todo-item.drag-over-bottom {
+  border-bottom: 2px solid var(--text-accent);
+}
+
+.focus-todo-item.drag-over-nest {
+  background: var(--background-modifier-active-hover);
+  border-left: 3px solid var(--text-accent);
+}
+
+.focus-drag-handle {
+  color: var(--text-faint);
+  cursor: grab;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.focus-drag-handle:active {
+  cursor: grabbing;
+}
+
+.focus-todo-item input[type="checkbox"] {
+  margin: 2px 0 0 0;
+  flex-shrink: 0;
+}
+
+.focus-todo-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.focus-todo-text {
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  word-wrap: break-word;
+}
+
+.focus-todo-text:hover {
+  color: var(--text-accent);
+}
+
+.focus-todo-source {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.focus-todo-tags {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.focus-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  background: var(--background-modifier-hover);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+
+/* ==================== */
+/* Un-nest Button       */
+/* ==================== */
+
+.focus-unnest-btn {
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.focus-todo-item:hover .focus-unnest-btn {
+  opacity: 1;
+}
+
+.focus-unnest-btn:hover {
+  color: var(--text-accent);
+}
+
+/* ==================== */
+/* LLM Panel            */
+/* ==================== */
+
+.focus-llm-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 200px;
+}
+
+.focus-llm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.focus-llm-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.focus-llm-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.focus-llm-title-group h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.focus-llm-model-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: var(--background-modifier-hover);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+
+.focus-llm-token-info {
+  font-size: 10px;
+  color: var(--text-faint);
+  cursor: help;
+}
+
+.focus-llm-context-info {
+  font-size: 10px;
+  color: var(--text-faint);
+  cursor: help;
+}
+
+.focus-llm-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.focus-llm-welcome {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.focus-llm-welcome p {
+  margin: 0 0 8px 0;
+}
+
+.focus-llm-welcome ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.focus-llm-welcome li {
+  margin: 4px 0;
+}
+
+.focus-llm-message {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.focus-llm-message-user {
+  background: var(--background-modifier-hover);
+  margin-left: 24px;
+}
+
+.focus-llm-message-assistant {
+  background: var(--background-secondary);
+  margin-right: 24px;
+}
+
+.focus-llm-message-content {
+  word-wrap: break-word;
+}
+
+.focus-llm-message-content p {
+  margin: 0 0 8px 0;
+}
+
+.focus-llm-message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.focus-llm-loading {
+  padding: 12px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* ==================== */
+/* Streaming Response   */
+/* ==================== */
+
+.focus-llm-message-streaming {
+  position: relative;
+}
+
+.focus-llm-cursor {
+  display: inline;
+  animation: focus-cursor-blink 0.8s step-end infinite;
+  color: var(--text-accent);
+  font-weight: normal;
+  margin-left: 1px;
+}
+
+@keyframes focus-cursor-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* ==================== */
+/* Inline Actions       */
+/* ==================== */
+
+.focus-llm-inline-actions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.focus-llm-actions-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.focus-llm-action {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--background-primary);
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  font-size: 13px;
+}
+
+.focus-llm-action:last-child {
+  margin-bottom: 0;
+}
+
+.focus-llm-action-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.focus-llm-action-type {
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.focus-llm-action-details {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.focus-llm-action-item {
+  padding: 2px 0;
+}
+
+.focus-llm-action-more {
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+.focus-llm-action-file {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.focus-llm-action-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.focus-action-btn {
+  padding: 4px 12px;
+  font-size: 11px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.focus-action-btn:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.focus-action-dismiss {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.focus-action-dismiss:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* ==================== */
+/* Input Area           */
+/* ==================== */
+
+.focus-llm-input-container {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+.focus-llm-input {
+  flex: 1;
+  resize: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.focus-llm-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
+.focus-llm-send-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+.focus-llm-send-btn:hover {
+  background: var(--interactive-accent-hover);
+}
+
+/* ==================== */
+/* Settings             */
+/* ==================== */
+
+.focus-settings textarea {
+  width: 100%;
+  min-height: 80px;
+}
