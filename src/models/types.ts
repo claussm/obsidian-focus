@@ -63,3 +63,21 @@ export interface NestingData {
   /** Last updated timestamp */
   updated: string;
 }
+
+export interface Section {
+  /** Unique identifier */
+  id: string;
+  /** Display name */
+  name: string;
+  /** Whether the section body is collapsed */
+  collapsed: boolean;
+}
+
+export interface SectionsData {
+  /** Ordered list of sections */
+  sections: Section[];
+  /** Map of todo ID -> section ID for assigned todos */
+  assignments: Record<string, string>;
+  /** Map of section ID -> ordered todo IDs within that section */
+  sectionOrder: Record<string, string[]>;
+}
