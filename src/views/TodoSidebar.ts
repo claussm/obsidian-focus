@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, TFile, TFolder, setIcon } from 'obsidian';
+import { ItemView, WorkspaceLeaf, TFile, TFolder, setIcon, Platform } from 'obsidian';
 import { Todo, PluginSettings, PriorityData, NestingData } from '../models/types';
 import { TodoParser } from '../services/TodoParser';
 import { TodoWriter } from '../services/TodoWriter';
@@ -315,7 +315,6 @@ export class TodoSidebar extends ItemView {
     const item = container.createDiv({ cls: 'focus-todo-item' });
     item.setAttribute('data-id', todo.id);
     item.style.paddingLeft = `${16 + depth * 24}px`;
-    item.draggable = true;
 
     // Un-nest button (for nested items)
     if (depth > 0) {
@@ -328,9 +327,29 @@ export class TodoSidebar extends ItemView {
       };
     }
 
-    // Drag handle
-    const handle = item.createDiv({ cls: 'focus-drag-handle' });
-    setIcon(handle, 'grip-vertical');
+    if (Platform.isMobile) {
+      // On mobile: show up/down buttons instead of drag handle
+      const moveUp = item.createDiv({ cls: 'focus-move-btn' });
+      setIcon(moveUp, 'chevron-up');
+      moveUp.setAttribute('aria-label', 'Move up');
+      moveUp.onclick = async (e) => {
+        e.stopPropagation();
+        await this.moveTodo(todo, 'up');
+      };
+
+      const moveDown = item.createDiv({ cls: 'focus-move-btn' });
+      setIcon(moveDown, 'chevron-down');
+      moveDown.setAttribute('aria-label', 'Move down');
+      moveDown.onclick = async (e) => {
+        e.stopPropagation();
+        await this.moveTodo(todo, 'down');
+      };
+    } else {
+      // On desktop: drag handle
+      item.draggable = true;
+      const handle = item.createDiv({ cls: 'focus-drag-handle' });
+      setIcon(handle, 'grip-vertical');
+    }
 
     // Checkbox
     const checkbox = item.createEl('input', { type: 'checkbox' });
@@ -364,59 +383,61 @@ export class TodoSidebar extends ItemView {
       }
     }
 
-    // Drag events
-    item.ondragstart = (e) => {
-      this.draggedTodo = todo;
-      item.addClass('dragging');
-      e.dataTransfer?.setData('text/plain', todo.id);
-    };
+    // Drag events (desktop only)
+    if (!Platform.isMobile) {
+      item.ondragstart = (e) => {
+        this.draggedTodo = todo;
+        item.addClass('dragging');
+        e.dataTransfer?.setData('text/plain', todo.id);
+      };
 
-    item.ondragend = () => {
-      item.removeClass('dragging');
-      this.draggedTodo = null;
-    };
+      item.ondragend = () => {
+        item.removeClass('dragging');
+        this.draggedTodo = null;
+      };
 
-    item.ondragover = (e) => {
-      e.preventDefault();
-      if (!this.draggedTodo || this.draggedTodo.id === todo.id) return;
+      item.ondragover = (e) => {
+        e.preventDefault();
+        if (!this.draggedTodo || this.draggedTodo.id === todo.id) return;
 
-      const rect = item.getBoundingClientRect();
-      const y = e.clientY - rect.top;
-      const height = rect.height;
+        const rect = item.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const height = rect.height;
 
-      item.removeClass('drag-over-top', 'drag-over-bottom', 'drag-over-nest');
+        item.removeClass('drag-over-top', 'drag-over-bottom', 'drag-over-nest');
 
-      if (y < height * 0.25) {
-        item.addClass('drag-over-top');
-      } else if (y > height * 0.75) {
-        item.addClass('drag-over-bottom');
-      } else {
-        item.addClass('drag-over-nest');
-      }
-    };
+        if (y < height * 0.25) {
+          item.addClass('drag-over-top');
+        } else if (y > height * 0.75) {
+          item.addClass('drag-over-bottom');
+        } else {
+          item.addClass('drag-over-nest');
+        }
+      };
 
-    item.ondragleave = () => {
-      item.removeClass('drag-over-top', 'drag-over-bottom', 'drag-over-nest');
-    };
+      item.ondragleave = () => {
+        item.removeClass('drag-over-top', 'drag-over-bottom', 'drag-over-nest');
+      };
 
-    item.ondrop = async (e) => {
-      e.preventDefault();
-      if (!this.draggedTodo || this.draggedTodo.id === todo.id) return;
+      item.ondrop = async (e) => {
+        e.preventDefault();
+        if (!this.draggedTodo || this.draggedTodo.id === todo.id) return;
 
-      const rect = item.getBoundingClientRect();
-      const y = e.clientY - rect.top;
-      const height = rect.height;
+        const rect = item.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const height = rect.height;
 
-      item.removeClass('drag-over-top', 'drag-over-bottom', 'drag-over-nest');
+        item.removeClass('drag-over-top', 'drag-over-bottom', 'drag-over-nest');
 
-      if (y < height * 0.25) {
-        await this.handleDropReorder(this.draggedTodo, todo, 'before');
-      } else if (y > height * 0.75) {
-        await this.handleDropReorder(this.draggedTodo, todo, 'after');
-      } else {
-        await this.handleDropNest(this.draggedTodo, todo);
-      }
-    };
+        if (y < height * 0.25) {
+          await this.handleDropReorder(this.draggedTodo, todo, 'before');
+        } else if (y > height * 0.75) {
+          await this.handleDropReorder(this.draggedTodo, todo, 'after');
+        } else {
+          await this.handleDropNest(this.draggedTodo, todo);
+        }
+      };
+    }
 
     // Render children recursively
     const children = childrenMap.get(todo.id);
@@ -520,6 +541,46 @@ export class TodoSidebar extends ItemView {
 
     await this.saveNestingData();
     await this.savePriorityOrder();
+    this.render();
+  }
+
+  private async moveTodo(todo: Todo, direction: 'up' | 'down'): Promise<void> {
+    const parentId = this.nestingData.parentMap[todo.id];
+
+    if (parentId) {
+      // Moving within a parent's children
+      const siblings = this.nestingData.childOrder[parentId] || [];
+      const idx = siblings.indexOf(todo.id);
+      if (idx === -1) return;
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= siblings.length) return;
+      siblings.splice(idx, 1);
+      siblings.splice(newIdx, 0, todo.id);
+      this.nestingData.childOrder[parentId] = siblings;
+      await this.saveNestingData();
+    } else {
+      // Moving in root priority order
+      const allRootIds = this.todos
+        .filter(t => !this.nestingData.parentMap[t.id])
+        .map(t => t.id);
+
+      // Ensure every root item is represented in priorityOrder
+      for (const id of allRootIds) {
+        if (!this.priorityOrder.includes(id)) {
+          this.priorityOrder.push(id);
+        }
+      }
+
+      const idx = this.priorityOrder.indexOf(todo.id);
+      if (idx === -1) return;
+      const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= this.priorityOrder.length) return;
+      this.priorityOrder.splice(idx, 1);
+      this.priorityOrder.splice(newIdx, 0, todo.id);
+      await this.savePriorityOrder();
+    }
+
+    this.sortTodos();
     this.render();
   }
 

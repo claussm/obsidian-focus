@@ -179,3 +179,61 @@
 .focus-unnest-btn:hover {
   color: var(--text-accent);
 }
+
+/* ==================== */
+/* Move Buttons (mobile)*/
+/* ==================== */
+
+.focus-move-btn {
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.focus-move-btn:active {
+  color: var(--text-accent);
+}
+
+/* ==================== */
+/* Mobile overrides     */
+/* ==================== */
+
+.is-mobile .focus-todo-item {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  min-height: 44px;
+}
+
+/* Always show un-nest button on touch devices */
+.is-mobile .focus-unnest-btn {
+  opacity: 1;
+}
+
+/* Larger tap targets for icon buttons */
+.is-mobile .focus-icon-btn {
+  padding: 10px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Larger checkbox tap area */
+.is-mobile .focus-todo-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 0;
+}
+
+/* Larger move and unnest buttons */
+.is-mobile .focus-move-btn,
+.is-mobile .focus-unnest-btn {
+  padding: 8px;
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
