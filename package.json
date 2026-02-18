@@ -1,7 +1,7 @@
 {
   "name": "obsidian-focus",
-  "version": "0.1.0",
-  "description": "A focused todo processing station with LLM-powered prioritization",
+  "version": "1.0.0",
+  "description": "Aggregates and prioritizes todos from across your vault into a focused sidebar",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -12,8 +12,7 @@
     "obsidian",
     "plugin",
     "todo",
-    "focus",
-    "llm"
+    "focus"
   ],
   "author": "Matt",
   "license": "MIT",
