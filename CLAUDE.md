@@ -1,14 +1,12 @@
 # Obsidian Focus
 
-An Obsidian plugin for processing and prioritizing todos with an LLM-powered assistant.
+An Obsidian plugin that aggregates and prioritizes todos from across your vault.
 
 ## Project Overview
 
-**Problem**: Obsidian is great for capture and long-form notes, but its UX for processing todos and prioritizing work is clunky. This plugin provides a focused "processing station" within Obsidian.
+**Problem**: Obsidian is great for capture and long-form notes, but its UX for processing todos and prioritizing work is clunky. This plugin provides a focused todo sidebar within Obsidian.
 
-**Solution**: An Obsidian plugin with:
-- Right sidebar: unified todo list aggregated from vault
-- Bottom panel: LLM chat interface (toggled) with full vault context
+**Solution**: An Obsidian plugin with a right sidebar that shows a unified todo list aggregated from your vault.
 
 ## Architecture
 
@@ -21,14 +19,12 @@ An Obsidian plugin for processing and prioritizing todos with an LLM-powered ass
 │  │          │  │                                         │  │
 │  │ ┌──────┐ │  │   [Your notes as usual]                 │  │
 │  │ │ Todo │ │  │                                         │  │
-│  │ │ List │ │  ├─────────────────────────────────────────┤  │
-│  │ │      │ │  │  LLM Panel (toggled via Cmd+Shift+L)    │  │
+│  │ │ List │ │  │                                         │  │
+│  │ │      │ │  │                                         │  │
 │  │ │ ☐ A  │ │  │                                         │  │
-│  │ │ ☐ B  │ │  │  Chat with Claude about your todos      │  │
-│  │ ├──────┤ │  │                                         │  │
-│  │ │ [🤖] │ │  │                                         │  │
-│  │ └──────┘ │  └─────────────────────────────────────────┘  │
-│  └──────────┘                                               │
+│  │ │ ☐ B  │ │  │                                         │  │
+│  │ └──────┘ │  │                                         │  │
+│  └──────────┘  └─────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -42,17 +38,7 @@ An Obsidian plugin for processing and prioritizing todos with an LLM-powered ass
 - Click todo text → jumps to source line
 - Check/uncheck → writes back to source markdown
 - Drag to reorder → persists custom priority
-
-### LLM Panel (toggled)
-- Toggle with `Cmd+Shift+L` or sidebar button
-- Chat interface with Claude API
-- Context includes: all open todos, all dailies, tagged notes, included folders
-- LLM can suggest actions:
-  - Reorder todos
-  - Mark complete
-  - Break down into subtasks
-  - Spawn new notes with backlinks
-  - Add new todos
+- Drag to nest → groups todos visually under a parent
 
 ## File Structure
 
@@ -69,13 +55,10 @@ obsidian-focus/
 │   ├── models/
 │   │   └── types.ts       # Core interfaces
 │   ├── views/
-│   │   ├── TodoSidebar.ts # Right sidebar view
-│   │   └── LLMPanel.ts    # Bottom panel view
+│   │   └── TodoSidebar.ts # Right sidebar view
 │   └── services/
 │       ├── TodoParser.ts  # Extract todos from markdown
-│       ├── TodoWriter.ts  # Write changes back to files
-│       ├── ContextBuilder.ts # Build LLM context
-│       └── ClaudeAPI.ts   # Claude API client
+│       └── TodoWriter.ts  # Write changes back to files
 ```
 
 ## Data Structures
@@ -94,7 +77,7 @@ interface Todo {
   indent: number;          // nesting level
   children: Todo[];        // nested todos
   tags: string[];          // #tags in text
-  linkedNote?: string;     // spawned note path
+  linkedNote?: string;     // linked note path
   capturedAt: Date;        // from filename or mtime
 }
 ```
@@ -105,30 +88,9 @@ interface PluginSettings {
   dailyNotesParent: string;    // "" for root, or folder path
   backlogFiles: string[];      // ["TODO.md"]
   includeFolders: string[];    // ["projects", "areas"]
-  contextTag: string;          // "ai-context"
-  claudeApiKey: string;
   defaultSort: 'priority' | 'date' | 'source';
 }
 ```
-
-## LLM Actions
-
-The LLM can output actions in XML format:
-
-```xml
-<action type="reorder">["id1", "id2", "id3"]</action>
-<action type="complete">todo-id</action>
-<action type="breakdown" todoId="id">
-- Subtask 1
-- Subtask 2
-</action>
-<action type="spawnNote" todoId="id" title="Note Title">
-Note content here
-</action>
-<action type="addTodo" file="TODO.md">New todo text</action>
-```
-
-Actions appear as suggestions the user can Apply or Dismiss.
 
 ## Daily Notes Structure
 
@@ -174,8 +136,7 @@ npm run build
 
 ## Commands
 
-| Command | Hotkey | Description |
-|---------|--------|-------------|
-| Open Focus sidebar | — | Show todo sidebar |
-| Toggle AI assistant | `Cmd+Shift+L` | Open/close LLM panel |
-| Refresh todo list | — | Re-scan vault for todos |
+| Command | Description |
+|---------|-------------|
+| Open Focus sidebar | Show todo sidebar |
+| Refresh todo list | Re-scan vault for todos |
