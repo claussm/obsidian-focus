@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, TFile, TFolder, setIcon } from 'obsidian';
-import { Todo, PluginSettings, PriorityData, NestingData } from '../models/types';
+import { Todo, PluginSettings, PriorityData, NestingData, Section, SectionsData } from '../models/types';
 import { TodoParser } from '../services/TodoParser';
 import { TodoWriter } from '../services/TodoWriter';
 import FocusPlugin from '../main';
@@ -10,10 +10,12 @@ export class TodoSidebar extends ItemView {
   private todos: Todo[] = [];
   private priorityOrder: string[] = [];
   private nestingData: NestingData = { parentMap: {}, childOrder: {}, updated: '' };
+  private sectionsData: SectionsData = { sections: [], assignments: {}, sectionOrder: {} };
   private todoParser: TodoParser;
   private todoWriter: TodoWriter;
   private draggedTodo: Todo | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingRenameId: string | null = null;
 
   constructor(leaf: WorkspaceLeaf, private plugin: FocusPlugin) {
     super(leaf);
@@ -36,6 +38,7 @@ export class TodoSidebar extends ItemView {
   async onOpen(): Promise<void> {
     await this.loadPriorityOrder();
     await this.loadNestingData();
+    await this.loadSectionsData();
     await this.refresh();
     this.registerFileEvents();
   }
@@ -75,6 +78,19 @@ export class TodoSidebar extends ItemView {
       ...this.nestingData,
       updated: new Date().toISOString(),
     };
+    await this.plugin.saveData(data);
+  }
+
+  private async loadSectionsData(): Promise<void> {
+    const data = await this.plugin.loadData();
+    if (data?.sections) {
+      this.sectionsData = data.sections;
+    }
+  }
+
+  private async saveSectionsData(): Promise<void> {
+    const data = (await this.plugin.loadData()) || {};
+    data.sections = this.sectionsData;
     await this.plugin.saveData(data);
   }
 
@@ -168,19 +184,21 @@ export class TodoSidebar extends ItemView {
     const sourceFiles = this.getTodoSourceFiles();
     const allTodos = await this.todoParser.parseFiles(sourceFiles);
     this.todos = this.todoParser.flattenTodos(allTodos, false);
-    this.cleanupStaleNesting();
+    this.cleanupStaleData();
     this.sortTodos();
     this.render();
   }
 
-  private cleanupStaleNesting(): void {
+  private cleanupStaleData(): void {
     const validIds = new Set(this.todos.map(t => t.id));
-    let changed = false;
+    let nestingChanged = false;
+    let sectionsChanged = false;
 
+    // Cleanup stale nesting
     for (const [childId, parentId] of Object.entries(this.nestingData.parentMap)) {
       if (!validIds.has(childId) || !validIds.has(parentId)) {
         delete this.nestingData.parentMap[childId];
-        changed = true;
+        nestingChanged = true;
       }
     }
 
@@ -188,16 +206,31 @@ export class TodoSidebar extends ItemView {
       const filtered = children.filter(id => validIds.has(id));
       if (filtered.length !== children.length) {
         this.nestingData.childOrder[parentId] = filtered;
-        changed = true;
+        nestingChanged = true;
       }
       if (filtered.length === 0) {
         delete this.nestingData.childOrder[parentId];
       }
     }
 
-    if (changed) {
-      this.saveNestingData();
+    // Cleanup stale section assignments
+    for (const todoId of Object.keys(this.sectionsData.assignments)) {
+      if (!validIds.has(todoId)) {
+        delete this.sectionsData.assignments[todoId];
+        sectionsChanged = true;
+      }
     }
+
+    for (const [sectionId, order] of Object.entries(this.sectionsData.sectionOrder)) {
+      const filtered = order.filter(id => validIds.has(id));
+      if (filtered.length !== order.length) {
+        this.sectionsData.sectionOrder[sectionId] = filtered;
+        sectionsChanged = true;
+      }
+    }
+
+    if (nestingChanged) this.saveNestingData();
+    if (sectionsChanged) this.saveSectionsData();
   }
 
   private sortTodos(): void {
@@ -282,6 +315,12 @@ export class TodoSidebar extends ItemView {
 
     const actions = header.createDiv({ cls: 'focus-sidebar-actions' });
 
+    // Add Section button
+    const addSectionBtn = actions.createEl('button', { cls: 'focus-icon-btn' });
+    setIcon(addSectionBtn, 'folder-plus');
+    addSectionBtn.setAttribute('aria-label', 'Add section');
+    addSectionBtn.onclick = () => this.createSection();
+
     // Refresh button
     const refreshBtn = actions.createEl('button', { cls: 'focus-icon-btn' });
     setIcon(refreshBtn, 'refresh-cw');
@@ -295,13 +334,147 @@ export class TodoSidebar extends ItemView {
     // Todo list
     const list = container.createDiv({ cls: 'focus-todo-list' });
 
-    if (this.todos.length === 0) {
+    const hasSections = this.sectionsData.sections.length > 0;
+
+    if (this.todos.length === 0 && !hasSections) {
       const empty = list.createDiv({ cls: 'focus-empty' });
       empty.setText('No open todos found');
-    } else {
-      const { roots, childrenMap } = this.buildDisplayTree();
-      for (const todo of roots) {
+      return;
+    }
+
+    const { roots, childrenMap } = this.buildDisplayTree();
+
+    // Split roots by section assignment
+    const inboxRoots: Todo[] = [];
+    const sectionRootsMap = new Map<string, Todo[]>();
+    for (const section of this.sectionsData.sections) {
+      sectionRootsMap.set(section.id, []);
+    }
+
+    for (const todo of roots) {
+      const sectionId = this.sectionsData.assignments[todo.id];
+      if (sectionId && sectionRootsMap.has(sectionId)) {
+        sectionRootsMap.get(sectionId)!.push(todo);
+      } else {
+        inboxRoots.push(todo);
+      }
+    }
+
+    // Sort todos within each section by their section-specific order
+    for (const [sectionId, todos] of sectionRootsMap) {
+      const order = this.sectionsData.sectionOrder[sectionId] || [];
+      todos.sort((a, b) => {
+        const aIdx = order.indexOf(a.id);
+        const bIdx = order.indexOf(b.id);
+        if (aIdx === -1 && bIdx === -1) return 0;
+        if (aIdx === -1) return 1;
+        if (bIdx === -1) return -1;
+        return aIdx - bIdx;
+      });
+    }
+
+    // Render inbox (unsectioned) area
+    if (inboxRoots.length > 0) {
+      if (hasSections) {
+        const inboxHeader = list.createDiv({ cls: 'focus-inbox-header' });
+        inboxHeader.setText('Inbox');
+      }
+      for (const todo of inboxRoots) {
         this.renderTodoItemNested(list, todo, childrenMap, 0);
+      }
+    }
+
+    // Render sections
+    for (const section of this.sectionsData.sections) {
+      this.renderSection(list, section, sectionRootsMap.get(section.id) || [], childrenMap);
+    }
+  }
+
+  private renderSection(
+    container: HTMLElement,
+    section: Section,
+    todos: Todo[],
+    childrenMap: Map<string, Todo[]>
+  ): void {
+    const sectionEl = container.createDiv({ cls: 'focus-section' });
+
+    // Section header
+    const headerEl = sectionEl.createDiv({ cls: 'focus-section-header' });
+    headerEl.setAttribute('data-section-id', section.id);
+
+    // Collapse toggle
+    const collapseBtn = headerEl.createDiv({ cls: 'focus-section-collapse' });
+    setIcon(collapseBtn, section.collapsed ? 'chevron-right' : 'chevron-down');
+    collapseBtn.onclick = async (e) => {
+      e.stopPropagation();
+      section.collapsed = !section.collapsed;
+      await this.saveSectionsData();
+      this.render();
+    };
+
+    // Section name (double-click to rename)
+    const nameEl = headerEl.createEl('span', { cls: 'focus-section-name', text: section.name });
+    nameEl.ondblclick = (e) => {
+      e.stopPropagation();
+      this.startRenameSection(section, nameEl);
+    };
+
+    // Auto-focus rename if this section was just created
+    if (this.pendingRenameId === section.id) {
+      this.pendingRenameId = null;
+      setTimeout(() => this.startRenameSection(section, nameEl), 0);
+    }
+
+    // Count badge
+    headerEl.createSpan({ cls: 'focus-section-count', text: `${todos.length}` });
+
+    // Delete button (visible on hover via CSS)
+    const deleteBtn = headerEl.createDiv({ cls: 'focus-section-delete focus-icon-btn' });
+    setIcon(deleteBtn, 'trash-2');
+    deleteBtn.setAttribute('aria-label', 'Delete section');
+    deleteBtn.onclick = async (e) => {
+      e.stopPropagation();
+      await this.deleteSection(section);
+    };
+
+    // Section header is a drop zone for assigning todos
+    headerEl.ondragover = (e) => {
+      if (!this.draggedTodo) return;
+      e.preventDefault();
+      headerEl.addClass('drag-over-section');
+    };
+    headerEl.ondragleave = () => headerEl.removeClass('drag-over-section');
+    headerEl.ondrop = async (e) => {
+      e.preventDefault();
+      headerEl.removeClass('drag-over-section');
+      if (!this.draggedTodo) return;
+      await this.assignToSection(this.draggedTodo, section.id);
+    };
+
+    // Section body
+    if (!section.collapsed) {
+      const bodyEl = sectionEl.createDiv({ cls: 'focus-section-body' });
+
+      if (todos.length === 0) {
+        // Empty drop zone
+        const emptyEl = bodyEl.createDiv({ cls: 'focus-section-empty' });
+        emptyEl.setText('Drop todos here');
+        emptyEl.ondragover = (e) => {
+          if (!this.draggedTodo) return;
+          e.preventDefault();
+          emptyEl.addClass('drag-over-section');
+        };
+        emptyEl.ondragleave = () => emptyEl.removeClass('drag-over-section');
+        emptyEl.ondrop = async (e) => {
+          e.preventDefault();
+          emptyEl.removeClass('drag-over-section');
+          if (!this.draggedTodo) return;
+          await this.assignToSection(this.draggedTodo, section.id);
+        };
+      } else {
+        for (const todo of todos) {
+          this.renderTodoItemNested(bodyEl, todo, childrenMap, 0);
+        }
       }
     }
   }
@@ -427,6 +600,84 @@ export class TodoSidebar extends ItemView {
     }
   }
 
+  // ==================== //
+  // Section Management   //
+  // ==================== //
+
+  private async createSection(): Promise<void> {
+    const section: Section = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2),
+      name: 'New Section',
+      collapsed: false,
+    };
+    this.sectionsData.sections.push(section);
+    this.pendingRenameId = section.id;
+    await this.saveSectionsData();
+    this.render();
+  }
+
+  private async deleteSection(section: Section): Promise<void> {
+    this.sectionsData.sections = this.sectionsData.sections.filter(s => s.id !== section.id);
+
+    // Return all assigned todos to inbox
+    for (const [todoId, sectionId] of Object.entries(this.sectionsData.assignments)) {
+      if (sectionId === section.id) {
+        delete this.sectionsData.assignments[todoId];
+      }
+    }
+    delete this.sectionsData.sectionOrder[section.id];
+
+    await this.saveSectionsData();
+    this.render();
+  }
+
+  private startRenameSection(section: Section, nameEl: HTMLElement): void {
+    const input = createEl('input', { type: 'text', cls: 'focus-section-name-input' });
+    input.value = section.name;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let committed = false;
+    const commit = async () => {
+      if (committed) return;
+      committed = true;
+      section.name = input.value.trim() || section.name;
+      await this.saveSectionsData();
+      this.render();
+    };
+
+    input.onblur = commit;
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { committed = true; this.render(); }
+    };
+  }
+
+  private async assignToSection(todo: Todo, sectionId: string): Promise<void> {
+    // Remove from current section order
+    this.removeTodoFromSections(todo.id);
+    // Remove from inbox priority order (it's moving to a section)
+    this.priorityOrder = this.priorityOrder.filter(id => id !== todo.id);
+
+    // Assign to new section
+    this.sectionsData.assignments[todo.id] = sectionId;
+    if (!this.sectionsData.sectionOrder[sectionId]) {
+      this.sectionsData.sectionOrder[sectionId] = [];
+    }
+    if (!this.sectionsData.sectionOrder[sectionId].includes(todo.id)) {
+      this.sectionsData.sectionOrder[sectionId].push(todo.id);
+    }
+
+    await this.saveSectionsData();
+    await this.savePriorityOrder();
+    this.render();
+  }
+
+  // ==================== //
+  // Drag & Drop          //
+  // ==================== //
+
   private removeTodoFromNesting(todoId: string): void {
     delete this.nestingData.parentMap[todoId];
 
@@ -440,22 +691,49 @@ export class TodoSidebar extends ItemView {
     this.priorityOrder = this.priorityOrder.filter(id => id !== todoId);
   }
 
-  private async handleDropReorder(dragged: Todo, target: Todo, position: 'before' | 'after'): Promise<void> {
-    this.removeTodoFromNesting(dragged.id);
+  private removeTodoFromSections(todoId: string): void {
+    const sectionId = this.sectionsData.assignments[todoId];
+    if (sectionId && this.sectionsData.sectionOrder[sectionId]) {
+      this.sectionsData.sectionOrder[sectionId] =
+        this.sectionsData.sectionOrder[sectionId].filter(id => id !== todoId);
+    }
+    delete this.sectionsData.assignments[todoId];
+  }
 
+  private async handleDropReorder(dragged: Todo, target: Todo, position: 'before' | 'after'): Promise<void> {
     const targetParentId = this.nestingData.parentMap[target.id];
+    const targetSectionId = this.sectionsData.assignments[target.id] || null;
+
+    // Remove dragged from its current position entirely
+    this.removeTodoFromNesting(dragged.id);
+    this.removeTodoFromSections(dragged.id);
 
     if (targetParentId) {
+      // Drop beside a nested child — become a sibling (no section change at child level)
       this.nestingData.parentMap[dragged.id] = targetParentId;
       const siblings = this.nestingData.childOrder[targetParentId] || [];
       const targetIdx = siblings.indexOf(target.id);
       const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
       siblings.splice(insertIdx, 0, dragged.id);
       this.nestingData.childOrder[targetParentId] = siblings;
+    } else if (targetSectionId) {
+      // Drop beside a todo in a section — move to that section
+      this.sectionsData.assignments[dragged.id] = targetSectionId;
+      if (!this.sectionsData.sectionOrder[targetSectionId]) {
+        this.sectionsData.sectionOrder[targetSectionId] = [];
+      }
+      const order = this.sectionsData.sectionOrder[targetSectionId];
+      const targetIdx = order.indexOf(target.id);
+      const insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+      if (targetIdx !== -1) {
+        order.splice(insertIdx, 0, dragged.id);
+      } else {
+        order.push(dragged.id);
+      }
     } else {
+      // Drop beside an inbox todo — stays in inbox, reorder by priorityOrder
       const targetRootIdx = this.priorityOrder.indexOf(target.id);
       const insertIdx = position === 'before' ? targetRootIdx : targetRootIdx + 1;
-
       if (targetRootIdx !== -1) {
         this.priorityOrder.splice(insertIdx, 0, dragged.id);
       } else {
@@ -465,6 +743,7 @@ export class TodoSidebar extends ItemView {
 
     await this.saveNestingData();
     await this.savePriorityOrder();
+    await this.saveSectionsData();
     this.render();
   }
 
@@ -474,6 +753,8 @@ export class TodoSidebar extends ItemView {
     }
 
     this.removeTodoFromNesting(dragged.id);
+    // Nested children don't hold section assignments — clear it
+    this.removeTodoFromSections(dragged.id);
 
     this.nestingData.parentMap[dragged.id] = newParent.id;
     if (!this.nestingData.childOrder[newParent.id]) {
@@ -483,6 +764,7 @@ export class TodoSidebar extends ItemView {
 
     await this.saveNestingData();
     await this.savePriorityOrder();
+    await this.saveSectionsData();
     this.render();
   }
 
@@ -511,6 +793,9 @@ export class TodoSidebar extends ItemView {
       }
     }
 
+    // Un-nested todo goes to inbox (clear any stale section assignment)
+    this.removeTodoFromSections(todoId);
+
     const parentRootIdx = this.priorityOrder.indexOf(parentId);
     if (parentRootIdx !== -1) {
       this.priorityOrder.splice(parentRootIdx + 1, 0, todoId);
@@ -520,6 +805,7 @@ export class TodoSidebar extends ItemView {
 
     await this.saveNestingData();
     await this.savePriorityOrder();
+    await this.saveSectionsData();
     this.render();
   }
 
