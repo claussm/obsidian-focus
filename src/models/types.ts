@@ -39,6 +39,12 @@ export interface PluginSettings {
   includeFolders: string[];
   /** Default sort order for todos */
   defaultSort: 'priority' | 'date' | 'source';
+  /** Days before a todo is considered aging */
+  stalenessAgingDays: number;
+  /** Days before a todo is considered stale */
+  stalenessStaleDays: number;
+  /** Days before a todo is considered neglected */
+  stalenessNeglectedDays: number;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -46,6 +52,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
   backlogFiles: ['TODO.md'],
   includeFolders: [],
   defaultSort: 'date',
+  stalenessAgingDays: 3,
+  stalenessStaleDays: 7,
+  stalenessNeglectedDays: 14,
 };
 
 export interface PriorityData {
@@ -81,3 +90,12 @@ export interface SectionsData {
   /** Map of section ID -> ordered todo IDs within that section */
   sectionOrder: Record<string, string[]>;
 }
+
+export interface TodoMetadata {
+  /** Timestamp when the todo was first seen by the plugin */
+  firstSeen: number;
+  /** Timestamp of last meaningful interaction (recommit, reorder, re-section) */
+  lastInteracted: number;
+}
+
+export type StaleTier = 'fresh' | 'aging' | 'stale' | 'neglected';

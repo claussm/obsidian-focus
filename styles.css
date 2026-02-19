@@ -306,3 +306,63 @@
 .focus-unnest-btn:hover {
   color: var(--text-accent);
 }
+
+/* ==================== */
+/* Staleness            */
+/* ==================== */
+
+.focus-todo-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.focus-age-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.focus-age-aging {
+  color: var(--text-faint);
+  background: var(--background-modifier-hover);
+}
+
+.focus-age-stale {
+  color: var(--color-orange);
+  background: rgba(var(--color-orange-rgb, 255, 165, 0), 0.12);
+}
+
+.focus-age-neglected {
+  color: var(--color-red);
+  background: rgba(var(--color-red-rgb, 255, 0, 0), 0.12);
+}
+
+.focus-todo-aging {
+  border-left: 2px solid transparent;
+}
+
+.focus-todo-stale {
+  border-left: 2px solid var(--color-orange);
+}
+
+.focus-todo-neglected {
+  border-left: 2px solid var(--color-red);
+}
+
+.focus-recommit-btn {
+  font-size: 10px;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.focus-recommit-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-active-hover);
+}
