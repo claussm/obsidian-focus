@@ -1,5 +1,5 @@
 import { ItemView, WorkspaceLeaf, TFile, TFolder, setIcon } from 'obsidian';
-import { Todo, PluginSettings, PriorityData, NestingData, Section, SectionsData } from '../models/types';
+import { Todo, PluginSettings, PriorityData, NestingData, Section, SectionsData, TodoMetadata, StaleTier } from '../models/types';
 import { TodoParser } from '../services/TodoParser';
 import { TodoWriter } from '../services/TodoWriter';
 import FocusPlugin from '../main';
@@ -11,6 +11,7 @@ export class TodoSidebar extends ItemView {
   private priorityOrder: string[] = [];
   private nestingData: NestingData = { parentMap: {}, childOrder: {}, updated: '' };
   private sectionsData: SectionsData = { sections: [], assignments: {}, sectionOrder: {} };
+  private todoMetadata: Record<string, TodoMetadata> = {};
   private todoParser: TodoParser;
   private todoWriter: TodoWriter;
   private draggedTodo: Todo | null = null;
@@ -39,6 +40,7 @@ export class TodoSidebar extends ItemView {
     await this.loadPriorityOrder();
     await this.loadNestingData();
     await this.loadSectionsData();
+    await this.loadTodoMetadata();
     await this.refresh();
     this.registerFileEvents();
   }
@@ -92,6 +94,83 @@ export class TodoSidebar extends ItemView {
     const data = (await this.plugin.loadData()) || {};
     data.sections = this.sectionsData;
     await this.plugin.saveData(data);
+  }
+
+  private async loadTodoMetadata(): Promise<void> {
+    const data = await this.plugin.loadData();
+    if (data?.todoMetadata) {
+      this.todoMetadata = data.todoMetadata;
+    }
+  }
+
+  private async saveTodoMetadata(): Promise<void> {
+    const data = (await this.plugin.loadData()) || {};
+    data.todoMetadata = this.todoMetadata;
+    await this.plugin.saveData(data);
+  }
+
+  private syncTodoMetadata(): void {
+    const now = Date.now();
+    const validIds = new Set(this.todos.map(t => t.id));
+    let changed = false;
+
+    // Initialize metadata for newly seen todos
+    for (const todo of this.todos) {
+      if (!this.todoMetadata[todo.id]) {
+        // For daily note todos, use capturedAt as firstSeen
+        const firstSeen = todo.capturedAt.getTime();
+        this.todoMetadata[todo.id] = { firstSeen, lastInteracted: firstSeen };
+        changed = true;
+      }
+    }
+
+    // Remove metadata for todos that no longer exist
+    for (const id of Object.keys(this.todoMetadata)) {
+      if (!validIds.has(id)) {
+        delete this.todoMetadata[id];
+        changed = true;
+      }
+    }
+
+    if (changed) this.saveTodoMetadata();
+  }
+
+  private getStaleTier(todoId: string): StaleTier {
+    const meta = this.todoMetadata[todoId];
+    if (!meta) return 'fresh';
+
+    const settings = this.plugin.settings;
+    const daysSinceInteraction = (Date.now() - meta.lastInteracted) / (1000 * 60 * 60 * 24);
+
+    if (daysSinceInteraction >= settings.stalenessNeglectedDays) return 'neglected';
+    if (daysSinceInteraction >= settings.stalenessStaleDays) return 'stale';
+    if (daysSinceInteraction >= settings.stalenessAgingDays) return 'aging';
+    return 'fresh';
+  }
+
+  private formatAge(todoId: string): string {
+    const meta = this.todoMetadata[todoId];
+    if (!meta) return '';
+
+    const days = Math.floor((Date.now() - meta.lastInteracted) / (1000 * 60 * 60 * 24));
+    if (days < 1) return '';
+    if (days < 7) return `${days}d`;
+    if (days < 30) return `${Math.floor(days / 7)}w`;
+    return `${Math.floor(days / 30)}mo`;
+  }
+
+  private async recommitTodo(todoId: string): Promise<void> {
+    if (this.todoMetadata[todoId]) {
+      this.todoMetadata[todoId].lastInteracted = Date.now();
+      await this.saveTodoMetadata();
+      this.render();
+    }
+  }
+
+  private async touchTodoInteraction(todoId: string): Promise<void> {
+    if (this.todoMetadata[todoId]) {
+      this.todoMetadata[todoId].lastInteracted = Date.now();
+    }
   }
 
   private registerFileEvents(): void {
@@ -185,6 +264,7 @@ export class TodoSidebar extends ItemView {
     const allTodos = await this.todoParser.parseFiles(sourceFiles);
     this.todos = this.todoParser.flattenTodos(allTodos, false);
     this.cleanupStaleData();
+    this.syncTodoMetadata();
     this.sortTodos();
     this.render();
   }
@@ -537,6 +617,30 @@ export class TodoSidebar extends ItemView {
       }
     }
 
+    // Staleness
+    const staleTier = this.getStaleTier(todo.id);
+    if (staleTier !== 'fresh') {
+      item.addClass(`focus-todo-${staleTier}`);
+
+      const ageLabel = this.formatAge(todo.id);
+      if (ageLabel) {
+        const meta = content.createDiv({ cls: 'focus-todo-meta' });
+
+        const ageBadge = meta.createSpan({ cls: `focus-age-badge focus-age-${staleTier}` });
+        ageBadge.setText(ageLabel);
+
+        if (staleTier === 'stale' || staleTier === 'neglected') {
+          const recommitBtn = meta.createSpan({ cls: 'focus-recommit-btn' });
+          recommitBtn.setText('recommit');
+          recommitBtn.setAttribute('aria-label', 'Reset staleness — you still mean to do this');
+          recommitBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await this.recommitTodo(todo.id);
+          };
+        }
+      }
+    }
+
     // Drag events
     item.ondragstart = (e) => {
       this.draggedTodo = todo;
@@ -669,8 +773,10 @@ export class TodoSidebar extends ItemView {
       this.sectionsData.sectionOrder[sectionId].push(todo.id);
     }
 
+    await this.touchTodoInteraction(todo.id);
     await this.saveSectionsData();
     await this.savePriorityOrder();
+    await this.saveTodoMetadata();
     this.render();
   }
 
@@ -741,9 +847,11 @@ export class TodoSidebar extends ItemView {
       }
     }
 
+    await this.touchTodoInteraction(dragged.id);
     await this.saveNestingData();
     await this.savePriorityOrder();
     await this.saveSectionsData();
+    await this.saveTodoMetadata();
     this.render();
   }
 
@@ -762,9 +870,11 @@ export class TodoSidebar extends ItemView {
     }
     this.nestingData.childOrder[newParent.id].push(dragged.id);
 
+    await this.touchTodoInteraction(dragged.id);
     await this.saveNestingData();
     await this.savePriorityOrder();
     await this.saveSectionsData();
+    await this.saveTodoMetadata();
     this.render();
   }
 
@@ -803,9 +913,11 @@ export class TodoSidebar extends ItemView {
       this.priorityOrder.push(todoId);
     }
 
+    await this.touchTodoInteraction(todoId);
     await this.saveNestingData();
     await this.savePriorityOrder();
     await this.saveSectionsData();
+    await this.saveTodoMetadata();
     this.render();
   }
 

@@ -84,5 +84,59 @@ export class FocusSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // Staleness section
+    containerEl.createEl('h3', { text: 'Staleness' });
+
+    containerEl.createEl('p', {
+      text: 'Todos that sit untouched accumulate visual staleness indicators. ' +
+        'Recommitting to a todo resets its staleness clock.',
+      cls: 'setting-item-description',
+    });
+
+    new Setting(containerEl)
+      .setName('Aging after (days)')
+      .setDesc('Days before a subtle age badge appears')
+      .addText(text =>
+        text
+          .setValue(String(this.plugin.settings.stalenessAgingDays))
+          .onChange(async value => {
+            const n = parseInt(value, 10);
+            if (!isNaN(n) && n > 0) {
+              this.plugin.settings.stalenessAgingDays = n;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Stale after (days)')
+      .setDesc('Days before the todo is visually flagged as stale')
+      .addText(text =>
+        text
+          .setValue(String(this.plugin.settings.stalenessStaleDays))
+          .onChange(async value => {
+            const n = parseInt(value, 10);
+            if (!isNaN(n) && n > 0) {
+              this.plugin.settings.stalenessStaleDays = n;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Neglected after (days)')
+      .setDesc('Days before the todo is strongly highlighted as neglected')
+      .addText(text =>
+        text
+          .setValue(String(this.plugin.settings.stalenessNeglectedDays))
+          .onChange(async value => {
+            const n = parseInt(value, 10);
+            if (!isNaN(n) && n > 0) {
+              this.plugin.settings.stalenessNeglectedDays = n;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
   }
 }
