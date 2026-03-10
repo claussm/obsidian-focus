@@ -1,6 +1,6 @@
 # Obsidian Focus
 
-A focused todo processing station for Obsidian.
+A focused todo processing station for [Obsidian](https://obsidian.md/).
 
 ## Features
 
